@@ -36,7 +36,7 @@ class Chatbot:
             'is_positive_feedback': any(phrase in text_lower for phrase in ['you are good', "you're good", 'you are great', "you're great", 'you are excellent', "you're excellent", 'you are amazing', "you're amazing", 'you are wonderful', "you're wonderful", 'you are awesome', "you're awesome", 'you are very good', "you're very good", 'you are the best', "you're the best", 'you are helpful', "you're helpful", 'you are perfect', "you're perfect"]),
             'is_comparison': any(phrase in text_lower for phrase in ['was better', 'was worse', 'used to be', 'better than', 'worse than', 'not as good', 'not as bad', 'improved', 'got worse', 'declined', 'better before', 'worse before']),
             'is_experience_feedback': any(phrase in text_lower for phrase in ['experience was', 'last experience', 'previous experience', 'this experience', 'my experience', 'the experience']),
-            'is_profanity': any(word in text_lower for word in ['fuck', 'damn', 'hell', 'shit', 'asshole', 'bitch', 'bastard', 'crap', 'piss', 'dick', 'cock', 'pussy', 'motherfucker', 'fucking', 'fucked']),
+            'is_profanity': any(re.search(r'\b' + re.escape(word) + r'\b', text_lower) for word in ['fuck', 'damn', 'hell', 'shit', 'asshole', 'bitch', 'bastard', 'crap', 'piss', 'dick', 'cock', 'pussy', 'motherfucker', 'fucking', 'fucked']),
             'is_offensive': any(phrase in text_lower for phrase in ['fuck you', 'fuck off', 'go to hell', 'screw you', 'shut up', 'shut your', 'kill yourself', 'die']),
             'needs_time': any(word in text_lower for word in ['time', 'what time', 'current time', 'clock']),
             'needs_date': any(phrase in text_lower for phrase in ['what date', 'what\'s the date', 'what is the date', 'what day is it', 'what day is today', 'date today', 'today\'s date', 'current date']) or (('date' in text_lower or 'day is it' in text_lower) and any(q_word in text_lower for q_word in ['what', 'when', 'which'])),
@@ -315,7 +315,27 @@ class Chatbot:
         if contextual_response:
             return contextual_response
         
-        # 0.3. Handle profanity and offensive language FIRST (before everything else)
+        # 0.1. Handle greetings FIRST (before everything else to avoid conflicts)
+        if keywords['is_greeting']:
+            self.greeting_count += 1
+            # Determine time of day for appropriate greeting
+            now = datetime.now()
+            hour = now.hour
+            if 5 <= hour < 12:
+                time_greeting = "Good morning"
+            elif 12 <= hour < 17:
+                time_greeting = "Good afternoon"
+            elif 17 <= hour < 21:
+                time_greeting = "Good evening"
+            else:
+                time_greeting = "Hello"
+            
+            if self.greeting_count == 1:
+                return f"{time_greeting}! I'm a sentiment analysis chatbot. I can chat with you, answer questions, tell you the time, do calculations, and analyze emotions in your messages. How can I help you today?"
+            else:
+                return f"{name_prefix}{time_greeting}! Nice to see you again. What would you like to talk about?"
+        
+        # 0.3. Handle profanity and offensive language (after greetings)
         if keywords['is_profanity'] or keywords['is_offensive']:
             # Check if it's directed at the bot or just general profanity
             directed_at_bot = any(phrase in user_lower for phrase in ['fuck you', 'fuck off', 'you', 'your', 'screw you', 'shut up'])
@@ -379,27 +399,7 @@ class Chatbot:
                 return f"{name_prefix}No worries at all! There's nothing to apologize for. What's on your mind?"
             return f"{name_prefix}That's okay, no need to apologize. How can I help you?"
         
-        # 6. Handle greetings naturally - GREET THEM BACK PROPERLY
-        if keywords['is_greeting']:
-            self.greeting_count += 1
-            # Determine time of day for appropriate greeting
-            now = datetime.now()
-            hour = now.hour
-            if 5 <= hour < 12:
-                time_greeting = "Good morning"
-            elif 12 <= hour < 17:
-                time_greeting = "Good afternoon"
-            elif 17 <= hour < 21:
-                time_greeting = "Good evening"
-            else:
-                time_greeting = "Hello"
-            
-            if self.greeting_count == 1:
-                return f"{time_greeting}! I'm a sentiment analysis chatbot. I can chat with you, answer questions, tell you the time, do calculations, and analyze emotions in your messages. How can I help you today?"
-            else:
-                return f"{name_prefix}{time_greeting}! Nice to see you again. What would you like to talk about?"
-        
-        # 6.5. Handle birthdays and special events
+        # 6. Handle birthdays and special events
         if keywords['is_birthday']:
             # Extract age if mentioned
             age_match = re.search(r'(\d+)\s*(?:years?\s*old|turning)', user_lower)
